@@ -5,6 +5,12 @@ Any PostgreSQL-compatible client — `psql`, DBeaver, pgAdmin, Npgsql, psycopg2,
 
 ---
 
+
+<img src="assets/images/sqlite-server.jpg" width="1024" height="636">
+
+
+
+
 ## Table of Contents
 
 - [Features](#features)
@@ -24,10 +30,10 @@ Any PostgreSQL-compatible client — `psql`, DBeaver, pgAdmin, Npgsql, psycopg2,
 
 | Feature | Details |
 |---------|---------|
-| **Zero dependencies** | Pure Go, CGO-free SQLite via `modernc.org/sqlite` |
-| **Full PG wire v3** | Startup, auth, simple query, extended query (prepared statements) |
-| **SQL translation** | PostgreSQL → SQLite: `SERIAL`, `BOOLEAN`, `ILIKE`, `EXTRACT`, `::` casts, `$N` params, `NOW()`, `RETURNING` |
-| **Virtual catalog** | `information_schema.*` and `pg_catalog.*` queries answered in-process |
+| **CGO-free single binary** | Pure Go, CGO-free SQLite via `modernc.org/sqlite` |
+| **PostgreSQL Wire Protocol v3 compatible** | Startup, auth, simple query, extended query (prepared statements) |
+| **SQL translation** | Automatic translation for common PostgreSQL syntax: `SERIAL`, `BOOLEAN`, `ILIKE`, `EXTRACT`, `::` casts, `$N` params, `NOW()`, `RETURNING` |
+| **Virtual catalog** | Common `information_schem`a and `pg_catalog` views queries answered in-process |
 | **WAL mode** | Single writer, many concurrent readers |
 | **TLS** | Optional TLS via `--ssl-cert` / `--ssl-key` |
 | **Graceful shutdown** | SIGINT / SIGTERM drains in-flight queries |
