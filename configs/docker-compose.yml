@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  sqlite-server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "5432:5432"
+    volumes:
+      - sqlite-data:/data
+    command: ["--addr", "0.0.0.0:5432", "--no-auth", "--wal", "--", "/data/app.db"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U test || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  sqlite-data:

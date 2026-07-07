@@ -1,0 +1,10 @@
+# sqlite-server — development configuration
+# Usage: ./sqlite-server --no-auth --addr 127.0.0.1:5432 -- dev.db
+
+addr: "127.0.0.1:5432"
+database: "dev.db"
+max-conn: 20
+wal: true
+no-auth: true
+log-level: "debug"
+busy-timeout: "5s"

@@ -1,0 +1,13 @@
+# sqlite-server — production configuration
+# Usage: ./sqlite-server --addr 0.0.0.0:5432 --ssl-cert cert.pem --ssl-key key.pem -- /var/data/app.db
+
+addr: "0.0.0.0:5432"
+database: "/var/data/app.db"
+max-conn: 100
+wal: true
+no-auth: false
+ssl-cert: "/etc/ssl/certs/server.crt"
+ssl-key:  "/etc/ssl/private/server.key"
+log-level: "info"
+busy-timeout: "10s"
+read-only: false
