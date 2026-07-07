@@ -1,0 +1,5 @@
+# SQLAlchemy ORM — works with any database backend
+SQLAlchemy>=2.0.0
+
+# psycopg2 PostgreSQL driver (binary version — no libpq compile needed)
+psycopg2-binary>=2.9.0

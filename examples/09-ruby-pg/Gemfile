@@ -1,0 +1,4 @@
+source 'https://rubygems.org'
+
+# PostgreSQL client library for Ruby — works with sqlite-server's wire protocol
+gem 'pg', '~> 1.5'

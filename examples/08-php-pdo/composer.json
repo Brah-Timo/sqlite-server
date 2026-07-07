@@ -1,0 +1,21 @@
+{
+    "name": "example/sqlite-server-php-pdo",
+    "description": "CMS example using PHP PDO + pgsql driver with sqlite-server",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "scripts": {
+        "run": "php app.php"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}
