@@ -1,52 +1,43 @@
-# sqlite-server — الوثائق الكاملة
+# sqlite-server — Documentation Index
 
-## قائمة الملفات
-
-| # | الملف | المحتوى |
-|---|-------|---------|
-| 01 | [01-overview.md](01-overview.md) | نظرة عامة، كيف يعمل، هيكل المشروع، تدفق البيانات الكامل |
-| 02 | [02-installation-and-build.md](02-installation-and-build.md) | بناء الملف التنفيذي، إنشاء .exe، Cross-compilation لكل المنصات |
-| 03 | [03-running-and-cli.md](03-running-and-cli.md) | تشغيل الخادم، جميع CLI flags، PowerShell & Bash، الاتصال من أدوات مختلفة |
-| 04 | [04-architecture-deep-dive.md](04-architecture-deep-dive.md) | البنية الداخلية التفصيلية، الحزم، الأنماط، Import cycle fix |
-| 05 | [05-testing-guide.md](05-testing-guide.md) | الاختبارات الوحدوية والتكاملية، جميع الأوامر، سكريبتات CI |
-| 06 | [06-sql-compatibility.md](06-sql-compatibility.md) | ما يُترجَم تلقائياً، جداول التوافق، الكتالوج الافتراضي، القيود |
-| 07 | [07-troubleshooting.md](07-troubleshooting.md) | استكشاف الأخطاء، FAQ، حلول للمشاكل الشائعة |
-| 08 | [08-wire-protocol-reference.md](08-wire-protocol-reference.md) | مرجع بروتوكول PostgreSQL Wire v3، تنسيق الرسائل، تسلسل الاتصال |
-| 09 | [09-developer-guide.md](09-developer-guide.md) | كيفية إضافة ميزات جديدة، أنماط الكود، المساهمة |
-| 10 | [10-performance-and-production.md](10-performance-and-production.md) | ضبط الأداء، النشر (Docker/k8s/systemd)، النسخ الاحتياطي، الأمان |
+Welcome to the complete documentation for **sqlite-server**, a Go server that exposes a
+SQLite database over the PostgreSQL Wire Protocol v3.
 
 ---
 
-## البداية السريعة (3 أوامر)
+## Document Index
+
+| # | File | Contents |
+|---|------|----------|
+| 01 | [01-overview.md](01-overview.md) | What it is, how it works end-to-end, project layout, full data-flow diagrams |
+| 02 | [02-installation-and-build.md](02-installation-and-build.md) | Building from source, creating `.exe`, cross-compilation for all platforms |
+| 03 | [03-running-and-cli.md](03-running-and-cli.md) | Starting the server, all CLI flags, PowerShell & Bash examples, connecting from various clients |
+| 04 | [04-architecture-deep-dive.md](04-architecture-deep-dive.md) | Internals of every package, import-cycle fix, wire protocol implementation details |
+| 05 | [05-testing-guide.md](05-testing-guide.md) | Unit tests, integration tests, all commands, CI scripts |
+| 06 | [06-sql-compatibility.md](06-sql-compatibility.md) | Auto-translated syntax, compatibility tables, virtual catalog, known limitations |
+| 07 | [07-troubleshooting.md](07-troubleshooting.md) | Common errors, error messages explained, FAQ |
+| 08 | [08-wire-protocol-reference.md](08-wire-protocol-reference.md) | Full PostgreSQL Wire Protocol v3 reference, message formats, state machines |
+| 09 | [09-developer-guide.md](09-developer-guide.md) | Adding new SQL rules, catalog entries, code patterns, contributing |
+| 10 | [10-performance-and-production.md](10-performance-and-production.md) | Tuning, Docker / Kubernetes / systemd deployment, backup, security |
+
+---
+
+## Quick Start (3 commands)
 
 ```bash
-# 1. بناء
+# 1. Build
 go build -o sqlite-server ./cmd/sqlite-server
 
-# 2. تشغيل
+# 2. Start
 ./sqlite-server --no-auth -- myapp.db
 
-# 3. اتصال
+# 3. Connect
 psql -h localhost -p 5432 -U test -c "SELECT 1"
 ```
 
 ---
 
-## أهم المسارات في الكود
-
-| المسار | الوظيفة |
-|--------|---------|
-| `internal/wire/session.go` | حلقة الأوامر الرئيسية لكل اتصال |
-| `internal/wire/startup.go` | بروتوكول المصافحة مع العميل |
-| `sql/planner/rewriter.go` | ترجمة PostgreSQL SQL → SQLite SQL |
-| `internal/catalog/catalog.go` | الكتالوج الافتراضي (pg_catalog, information_schema) |
-| `internal/pool/connpool.go` | إدارة اتصالات SQLite + WAL scheduler |
-| `internal/pgproto/types.go` | الأنواع المشتركة (حل Import Cycle) |
-| `cmd/sqlite-server/main.go` | CLI entry point |
-
----
-
-## بناء .exe لـ Windows
+## Build a Windows `.exe`
 
 ```powershell
 # PowerShell
@@ -56,7 +47,32 @@ go build -o sqlite-server.exe .\cmd\sqlite-server
 ```
 
 ```bash
-# من Linux/macOS
+# From Linux / macOS
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
   go build -o sqlite-server.exe ./cmd/sqlite-server
 ```
+
+---
+
+## Most Important Source Paths
+
+| Path | Purpose |
+|------|---------|
+| `internal/wire/session.go` | Main command loop for every client connection |
+| `internal/wire/startup.go` | PostgreSQL handshake sequence |
+| `sql/planner/rewriter.go` | Translates PostgreSQL SQL → SQLite SQL |
+| `internal/catalog/catalog.go` | Virtual `pg_catalog` / `information_schema` |
+| `internal/pool/connpool.go` | SQLite connection pool + WAL writer scheduler |
+| `internal/pgproto/types.go` | Shared types that break the import cycle |
+| `cmd/sqlite-server/main.go` | CLI entry point (cobra) |
+
+---
+
+## Key Facts
+
+- **Language**: Go 1.22+, zero CGO (`modernc.org/sqlite`)
+- **Protocol**: PostgreSQL Wire Protocol v3 (full implementation)
+- **Module**: `github.com/sqlite-server/sqlite-server`
+- **Default port**: `5432`
+- **Binary size**: ~16 MB (single self-contained executable)
+- **First build**: 3–5 min (sqlite C→Go transpilation); subsequent builds < 10 s

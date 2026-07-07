@@ -1,98 +1,111 @@
-# التثبيت والبناء — Installation & Build Guide
-## أوامر PowerShell / Bash كاملة
+# Installation & Build Guide
+## Full Commands — PowerShell and Bash
 
 ---
 
-## المتطلبات الأساسية
+## Prerequisites
 
-| الأداة | الإصدار الأدنى | الملاحظة |
-|--------|---------------|----------|
-| Go     | 1.22+         | [https://go.dev/dl/](https://go.dev/dl/) |
-| Git    | أي إصدار      | لاستنساخ المشروع |
-| make   | اختياري       | للاختصارات |
+| Tool | Minimum Version | Notes |
+|------|----------------|-------|
+| Go   | 1.22+          | https://go.dev/dl/ |
+| Git  | any            | for cloning the repo |
+| make | optional       | shortcut targets only |
 
-> ⚠️ **ملاحظة مهمة**: المشروع يستخدم `modernc.org/sqlite` الذي يُحوّل مصدر SQLite C إلى Go.  
-> أول عملية بناء تستغرق **2–5 دقائق** لتجميع هذا الكود المُولَّد.  
-> الإنشاءات اللاحقة تعمل من الكاش وتستغرق ثوانٍ فقط.
+> **Important — first-build time**: `modernc.org/sqlite` transpiles the entire
+> SQLite C source (~150 000 lines) to Go the first time you build.  
+> This takes **3–5 minutes** on a typical machine.  
+> All subsequent builds use the module cache and finish in under 10 seconds.
 
 ---
 
-## الاستنساخ والبناء الأساسي
-
-### PowerShell (Windows)
-
-```powershell
-# 1. استنساخ المشروع
-git clone https://github.com/sqlite-server/sqlite-server
-cd sqlite-server
-
-# 2. تنزيل التبعيات (أول مرة فقط)
-go mod download
-
-# 3. بناء الملف التنفيذي لـ Windows
-$env:CGO_ENABLED = "0"
-go build -o sqlite-server.exe .\cmd\sqlite-server
-
-# 4. التحقق من البناء
-.\sqlite-server.exe version
-# الناتج: sqlite-server dev
-
-# 5. تشغيل سريع (بدون مصادقة)
-.\sqlite-server.exe --no-auth -- myapp.db
-```
+## Clone and Basic Build
 
 ### Bash (Linux / macOS)
 
 ```bash
-# 1. استنساخ المشروع
+# 1. Clone
 git clone https://github.com/sqlite-server/sqlite-server
 cd sqlite-server
 
-# 2. تنزيل التبعيات
+# 2. Download dependencies (first run only)
 go mod download
 
-# 3. بناء الملف التنفيذي
+# 3. Build the executable
 CGO_ENABLED=0 go build -o sqlite-server ./cmd/sqlite-server
 
-# 4. التحقق
+# 4. Verify
 ./sqlite-server version
+# Output: sqlite-server dev
 
-# 5. تشغيل
+# 5. Quick start
 ./sqlite-server --no-auth -- myapp.db
+```
+
+### PowerShell (Windows)
+
+```powershell
+# 1. Clone
+git clone https://github.com/sqlite-server/sqlite-server
+cd sqlite-server
+
+# 2. Download dependencies
+go mod download
+
+# 3. Build for Windows
+$env:CGO_ENABLED = "0"
+go build -o sqlite-server.exe .\cmd\sqlite-server
+
+# 4. Verify
+.\sqlite-server.exe version
+# Output: sqlite-server dev
+
+# 5. Quick start
+.\sqlite-server.exe --no-auth -- myapp.db
+```
+
+### cmd.exe (Windows)
+
+```cmd
+set CGO_ENABLED=0
+go build -o sqlite-server.exe .\cmd\sqlite-server
+sqlite-server.exe version
 ```
 
 ---
 
-## بناء الملف التنفيذي .exe (Windows)
+## Building the Windows `.exe`
 
-### من Linux/macOS (Cross-Compilation)
+### From Linux or macOS (cross-compilation)
+
+Go's built-in cross-compilation makes this trivial — no Windows machine needed.
 
 ```bash
-# بناء ملف .exe لـ Windows 64-bit من Linux
+# Windows x64
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
   go build -o sqlite-server-windows-amd64.exe ./cmd/sqlite-server
 
-# بناء ملف .exe لـ Windows ARM64
+# Windows ARM64
 GOOS=windows GOARCH=arm64 CGO_ENABLED=0 \
   go build -o sqlite-server-windows-arm64.exe ./cmd/sqlite-server
 
+# Verify the files
 ls -lh sqlite-server-windows-*.exe
+# -rwxr-xr-x ... sqlite-server-windows-amd64.exe  16M
+# -rwxr-xr-x ... sqlite-server-windows-arm64.exe  15M
 ```
 
-### من Windows (PowerShell)
+### From Windows — PowerShell
 
 ```powershell
-# بناء لـ Windows x64 (الجهاز الحالي)
-$env:GOOS = "windows"
-$env:GOARCH = "amd64"
+# Build for the current machine (Windows x64)
+$env:GOOS        = "windows"
+$env:GOARCH      = "amd64"
 $env:CGO_ENABLED = "0"
 go build -o sqlite-server.exe .\cmd\sqlite-server
 
-# بناء بمعلومات الإصدار
-$VERSION = git describe --tags --always 2>$null
-if (-not $VERSION) { $VERSION = "1.0.0" }
-$COMMIT = git rev-parse --short HEAD 2>$null
-if (-not $COMMIT) { $COMMIT = "unknown" }
+# Build with version information embedded
+$VERSION    = (git describe --tags --always 2>$null) ?? "1.0.0"
+$COMMIT     = (git rev-parse --short HEAD 2>$null) ?? "unknown"
 $BUILD_DATE = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
 
 go build `
@@ -101,12 +114,12 @@ go build `
   -o sqlite-server.exe `
   .\cmd\sqlite-server
 
-# التحقق من الملف
+# Show the result
 .\sqlite-server.exe version
-Get-Item sqlite-server.exe | Select-Object Name, Length
+Get-Item sqlite-server.exe | Select-Object Name, @{n='Size (MB)';e={[math]::Round($_.Length/1MB,1)}}
 ```
 
-### من Windows (cmd.exe)
+### From Windows — cmd.exe
 
 ```cmd
 set GOOS=windows
@@ -118,15 +131,14 @@ sqlite-server.exe version
 
 ---
 
-## بناء لجميع المنصات (Cross-Platform)
+## Cross-Compile for All Platforms at Once
 
-### باستخدام Makefile (Linux/macOS)
+### Using the Makefile (Linux / macOS)
 
 ```bash
-# بناء لجميع المنصات دفعة واحدة
 make build-all
 
-# الناتج في مجلد dist/
+# Output in dist/
 # dist/sqlite-server-linux-amd64
 # dist/sqlite-server-linux-arm64
 # dist/sqlite-server-darwin-amd64
@@ -135,126 +147,104 @@ make build-all
 # dist/sqlite-server-freebsd-amd64
 ```
 
-### يدوياً (Bash)
+### Bash script (manual)
 
 ```bash
-BINARY="sqlite-server"
+#!/bin/bash
+set -e
 MODULE="./cmd/sqlite-server"
-
-# إنشاء مجلد الناتج
 mkdir -p dist
 
-# Linux AMD64
-GOOS=linux   GOARCH=amd64  CGO_ENABLED=0 go build -o dist/${BINARY}-linux-amd64   ${MODULE}
+targets=(
+  "linux/amd64"
+  "linux/arm64"
+  "darwin/amd64"
+  "darwin/arm64"
+  "windows/amd64"
+  "freebsd/amd64"
+)
 
-# Linux ARM64 (Raspberry Pi, AWS Graviton)
-GOOS=linux   GOARCH=arm64  CGO_ENABLED=0 go build -o dist/${BINARY}-linux-arm64   ${MODULE}
+for target in "${targets[@]}"; do
+  os="${target%/*}"
+  arch="${target#*/}"
+  outfile="dist/sqlite-server-${os}-${arch}"
+  [[ "$os" == "windows" ]] && outfile="${outfile}.exe"
 
-# macOS Intel
-GOOS=darwin  GOARCH=amd64  CGO_ENABLED=0 go build -o dist/${BINARY}-darwin-amd64  ${MODULE}
+  echo -n "Building ${os}/${arch} ... "
+  GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -o "$outfile" $MODULE
+  echo "$(du -sh "$outfile" | cut -f1)"
+done
 
-# macOS Apple Silicon (M1/M2/M3)
-GOOS=darwin  GOARCH=arm64  CGO_ENABLED=0 go build -o dist/${BINARY}-darwin-arm64  ${MODULE}
-
-# Windows x64
-GOOS=windows GOARCH=amd64  CGO_ENABLED=0 go build -o dist/${BINARY}-windows-amd64.exe ${MODULE}
-
-# FreeBSD
-GOOS=freebsd GOARCH=amd64  CGO_ENABLED=0 go build -o dist/${BINARY}-freebsd-amd64 ${MODULE}
-
-echo "=== الملفات المُنشأة ==="
+echo ""
+echo "All binaries:"
 ls -lh dist/
 ```
 
-### يدوياً (PowerShell على Windows)
+### PowerShell script
 
 ```powershell
-$BINARY = "sqlite-server"
 $MODULE = ".\cmd\sqlite-server"
-
 New-Item -ItemType Directory -Force -Path dist | Out-Null
 
-# Linux AMD64
-$env:GOOS="linux"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go build -o "dist\${BINARY}-linux-amd64" $MODULE
+$targets = @(
+  @{ OS="linux";   Arch="amd64" },
+  @{ OS="linux";   Arch="arm64" },
+  @{ OS="darwin";  Arch="amd64" },
+  @{ OS="darwin";  Arch="arm64" },
+  @{ OS="windows"; Arch="amd64" },
+  @{ OS="freebsd"; Arch="amd64" }
+)
 
-# Windows AMD64
-$env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go build -o "dist\${BINARY}-windows-amd64.exe" $MODULE
+foreach ($t in $targets) {
+  $env:GOOS        = $t.OS
+  $env:GOARCH      = $t.Arch
+  $env:CGO_ENABLED = "0"
 
-# macOS ARM64
-$env:GOOS="darwin"; $env:GOARCH="arm64"; $env:CGO_ENABLED="0"
-go build -o "dist\${BINARY}-darwin-arm64" $MODULE
+  $out = "dist\sqlite-server-$($t.OS)-$($t.Arch)"
+  if ($t.OS -eq "windows") { $out += ".exe" }
 
-# إعادة الإعدادات لحالة الجهاز
-Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED
+  Write-Host "Building $($t.OS)/$($t.Arch) ..." -NoNewline
+  go build -o $out $MODULE
+  $size = [math]::Round((Get-Item $out).Length / 1MB, 1)
+  Write-Host " ${size} MB"
+}
 
-Get-ChildItem dist\ | Format-Table Name, Length
+# Reset environment
+Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED -ErrorAction SilentlyContinue
+
+Write-Host "`nAll binaries:"
+Get-ChildItem dist\ | Format-Table Name, @{n='Size (MB)';e={[math]::Round($_.Length/1MB,1)}}
 ```
 
 ---
 
-## بناء Docker Image
+## Build Modes Compared
 
-### PowerShell / Bash
-
-```bash
-# بناء صورة Docker
-docker build -t sqlite-server:latest .
-
-# تشغيل من Docker
-docker run -d \
-  --name sqlite-server \
-  -p 5432:5432 \
-  -v $(pwd)/data:/data \
-  sqlite-server:latest \
-  --no-auth -- /data/myapp.db
-
-# التحقق من الاتصال
-psql -h localhost -p 5432 -U test -c "SELECT 1"
-```
-
-### docker-compose
+### Debug build (development)
 
 ```bash
-# باستخدام ملف configs/docker-compose.yml
-docker-compose -f configs/docker-compose.yml up -d
-
-# مراقبة السجلات
-docker-compose -f configs/docker-compose.yml logs -f
-
-# إيقاف
-docker-compose -f configs/docker-compose.yml down
-```
-
----
-
-## الفرق بين أوضاع البناء
-
-### Debug Build (للتطوير)
-
-```bash
-# بدون تقليص — يسمح بـ debugging أفضل
+# No size stripping — better stack traces
 go build -o sqlite-server ./cmd/sqlite-server
 ```
 
-### Release Build (للإنتاج)
+### Release build (production)
 
 ```bash
-# -s: حذف symbol table
-# -w: حذف DWARF debug info
-# -trimpath: حذف مسارات الجهاز المحلي من الملف
+# -s   strip symbol table
+# -w   strip DWARF debug info
+# -trimpath  remove local machine paths from the binary
 CGO_ENABLED=0 go build \
   -ldflags "-s -w -X main.Version=v1.0.0" \
   -trimpath \
   -o sqlite-server \
   ./cmd/sqlite-server
 
-# مقارنة الأحجام
-ls -lh sqlite-server  # الإنتاج ~16MB
+# Compare sizes
+# Debug:   ~25 MB
+# Release: ~16 MB
 ```
 
-### مع رقم الإصدار الكامل
+### With full version metadata
 
 ```bash
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -271,71 +261,103 @@ CGO_ENABLED=0 go build \
   ./cmd/sqlite-server
 
 ./sqlite-server version
-# sqlite-server v1.2.3-abc1234 (built 2026-07-07T11:00:00Z)
+# sqlite-server v1.2.3-abc1234 (2026-07-07T11:00:00Z)
 ```
 
 ---
 
-## أوامر go mod
+## Building a Docker Image
 
 ```bash
-# تنزيل التبعيات بدون شبكة
+# Build
+docker build -t sqlite-server:latest .
+
+# Run
+docker run -d \
+  --name sqlite-server \
+  -p 5432:5432 \
+  -v "$(pwd)/data:/data" \
+  sqlite-server:latest \
+  --no-auth -- /data/myapp.db
+
+# Check it
+psql -h localhost -p 5432 -U test -c "SELECT 1"
+```
+
+---
+
+## Module Commands Reference
+
+```bash
+# Download all dependencies to the local cache
 go mod download
 
-# تنظيف التبعيات غير المستخدمة
+# Remove unused dependencies, add missing ones
 GONOSUMDB="*" go mod tidy
 
-# التحقق من سلامة الحزم
+# Verify checksums of every module in the cache
 go mod verify
-# الناتج: all modules verified
+# all modules verified
 
-# عرض قائمة التبعيات
+# List direct and indirect dependencies
 go list -m all
 
-# التحقق من التبعيات مع الإصدارات
+# Show dependency graph
 go mod graph
 ```
 
 ---
 
-## استكشاف الأخطاء الشائعة عند البناء
+## Common Build Errors
 
-### خطأ: go: command not found
+### `go: command not found`
 
 ```bash
-# Linux — إيجاد مسار Go
-find /usr /home /opt -name "go" -type f 2>/dev/null | grep bin/go
-export PATH=$PATH:/usr/local/go/bin
+# Linux — find the Go binary
+find /usr /home /opt -name "go" -type f 2>/dev/null | grep "bin/go$"
 
-# إضافة دائمة لـ ~/.bashrc
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+export PATH=$PATH:/usr/local/go/bin        # add to current shell
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc   # persist
 source ~/.bashrc
 ```
 
-### خطأ: go.sum mismatch
+```powershell
+# Windows PowerShell
+$env:PATH = "$env:PATH;C:\Go\bin"
+# or add C:\Go\bin to system PATH via System Properties
+```
+
+### `verifying module: checksum mismatch`
 
 ```bash
-# حذف go.sum وإعادة توليده
 rm go.sum
 GONOSUMDB="*" GOFLAGS="-mod=mod" go mod tidy
 ```
 
-### خطأ: cannot find package
+### `cannot find package`
 
 ```bash
-# التحقق من مسار الموديول
 cat go.mod | head -3
-# يجب أن يظهر: module github.com/sqlite-server/sqlite-server
+# module github.com/sqlite-server/sqlite-server
 
-# تنزيل جميع التبعيات مجدداً
 go clean -modcache
 go mod download
 ```
 
-### البناء بطيء جداً (أول مرة)
+### Build takes 5+ minutes
 
-```
-البناء الأول يستغرق 3-5 دقائق — هذا طبيعي تماماً.
-modernc.org/sqlite يُترجم ~150,000 سطر من C إلى Go في أول مرة.
-التالية تعمل من الكاش في أقل من 10 ثوانٍ.
+This is normal on the **first build only**.  
+`modernc.org/sqlite` transpiles ~150 000 lines of C to Go.  
+The compiled output is cached; every subsequent build takes < 10 seconds.
+
+### `signal: killed` during `go vet ./...`
+
+The sqlite library's generated file is so large it can exhaust RAM during static
+analysis.  Vet your own packages explicitly:
+
+```bash
+go vet github.com/sqlite-server/sqlite-server/internal/pgproto
+go vet github.com/sqlite-server/sqlite-server/sql/...
+go vet github.com/sqlite-server/sqlite-server/internal/engine
+go vet github.com/sqlite-server/sqlite-server/internal/catalog
 ```
