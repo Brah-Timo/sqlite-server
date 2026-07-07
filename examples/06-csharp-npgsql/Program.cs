@@ -52,7 +52,7 @@ record Employee(
     string  JobTitle,
     decimal Salary,
     string  HireDate,
-    bool    IsActive,
+    int     IsActive,
     int?    ManagerId
 )
 {
@@ -209,7 +209,7 @@ class EmployeeRepository(NpgsqlConnection conn)
         DbHelper.Get<string>(r, "job_title"),
         DbHelper.Get<decimal>(r, "salary"),
         DbHelper.Get<string>(r, "hire_date"),
-        DbHelper.Get<bool>(r, "is_active"),
+        DbHelper.Get<int>(r, "is_active"),
         DbHelper.GetNullable<int>(r, "manager_id")
     );
 
@@ -245,12 +245,12 @@ class EmployeeRepository(NpgsqlConnection conn)
 
     public async Task<List<Employee>> FindByDepartmentAsync(int deptId)
         => await DbHelper.QueryManyAsync(conn,
-            "SELECT * FROM employees WHERE department_id = $1 AND is_active = TRUE ORDER BY last_name",
+            "SELECT * FROM employees WHERE department_id = $1 AND is_active = 1 ORDER BY last_name",
             Map, cmd => cmd.Parameters.AddWithValue(deptId));
 
     public async Task<List<Employee>> FindByManagerAsync(int managerId)
         => await DbHelper.QueryManyAsync(conn,
-            "SELECT * FROM employees WHERE manager_id = $1 AND is_active = TRUE ORDER BY last_name",
+            "SELECT * FROM employees WHERE manager_id = $1 AND is_active = 1 ORDER BY last_name",
             Map, cmd => cmd.Parameters.AddWithValue(managerId));
 
     public async Task<int> UpdateSalaryAsync(int id, decimal newSalary)
@@ -260,7 +260,7 @@ class EmployeeRepository(NpgsqlConnection conn)
 
     public async Task<int> TerminateAsync(int id)
         => await DbHelper.ExecuteAsync(conn,
-            "UPDATE employees SET is_active = FALSE WHERE id = $1",
+            "UPDATE employees SET is_active = 0 WHERE id = $1",
             cmd => cmd.Parameters.AddWithValue(id));
 
     public async Task<List<EmployeeWithDept>> FindWithDeptAsync()
@@ -276,7 +276,7 @@ class EmployeeRepository(NpgsqlConnection conn)
             FROM employees e
             JOIN departments d ON d.id = e.department_id
             LEFT JOIN employees m ON m.id = e.manager_id
-            WHERE e.is_active = TRUE
+            WHERE e.is_active = 1
             ORDER BY d.name, e.last_name
             """,
             r => new EmployeeWithDept(
@@ -341,7 +341,7 @@ class LeaveRepository(NpgsqlConnection conn)
               SUM(CASE WHEN lr.status='approved'   THEN lr.days ELSE 0 END) AS total_days
             FROM employees e
             LEFT JOIN leave_requests lr ON lr.employee_id = e.id
-            WHERE e.is_active = TRUE
+            WHERE e.is_active = 1
             GROUP BY e.id, e.first_name, e.last_name
             ORDER BY total_days DESC
             """,
@@ -444,7 +444,7 @@ static async Task SetupSchemaAsync(NpgsqlConnection conn)
           employee_id  INTEGER NOT NULL REFERENCES employees(id),
           reviewer_id  INTEGER NOT NULL REFERENCES employees(id),
           review_period TEXT NOT NULL,
-          rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+          rating       INTEGER NOT NULL,
           comments     TEXT NOT NULL DEFAULT '',
           review_date  TEXT NOT NULL DEFAULT (DATE('now'))
         )
@@ -627,9 +627,9 @@ var deptSummary = await DbHelper.QueryManyAsync(conn,
       MIN(e.salary)              AS min_salary,
       MAX(e.salary)              AS max_salary
     FROM departments d
-    LEFT JOIN employees e ON e.department_id = d.id AND e.is_active = TRUE
+    LEFT JOIN employees e ON e.department_id = d.id AND e.is_active = 1
     GROUP BY d.id, d.name, d.location
-    ORDER BY total_payroll DESC NULLS LAST
+    ORDER BY total_payroll DESC
     """,
     r => new DepartmentSummary(
         DbHelper.Get<string>(r, "department_name"),

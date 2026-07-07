@@ -8,28 +8,33 @@ Prerequisites:
     pip install psycopg2-binary
 
 Run sqlite-server first:
-    ./sqlite-server --no-auth -- /tmp/demo.db
+    ./sqlite-server --no-auth -- inventory.db
 
 Then run:
     python app.py
+
+sqlite-server compatibility notes:
+    - Each statement must be executed separately (no multi-statement strings)
+    - Use INTEGER PRIMARY KEY AUTOINCREMENT instead of SERIAL
+    - Use TEXT DEFAULT (DATETIME('now')) instead of TIMESTAMP DEFAULT NOW()
+    - Use INTEGER (0/1) instead of BOOLEAN
 """
 
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
-from datetime import datetime, date
-from decimal import Decimal
 import sys
 
 # ── Connection settings ────────────────────────────────────────────────────────
 DSN = {
-    "host":    "localhost",
-    "port":    5432,
-    "user":    "test",
-    "password":"test",
-    "dbname":  "test",
+    "host":     "localhost",
+    "port":     5432,
+    "user":     "test",
+    "password": "test",
+    "dbname":   "test",
     "connect_timeout": 5,
 }
+
 
 @contextmanager
 def get_conn():
@@ -46,50 +51,55 @@ def get_conn():
 
 
 # ── Schema ─────────────────────────────────────────────────────────────────────
-CREATE_SCHEMA = """
-DROP TABLE IF EXISTS order_items;
-DROP TABLE IF EXISTS orders;
-DROP TABLE IF EXISTS products;
-DROP TABLE IF EXISTS customers;
+# IMPORTANT: sqlite-server requires one statement per execute() call.
+# Use INTEGER PRIMARY KEY AUTOINCREMENT (not SERIAL).
+# Use TEXT DEFAULT (DATETIME('now')) (not TIMESTAMP DEFAULT NOW()).
 
-CREATE TABLE customers (
-    id         SERIAL PRIMARY KEY,
-    name       TEXT    NOT NULL,
-    email      TEXT    NOT NULL UNIQUE,
-    phone      TEXT,
-    joined_at  TIMESTAMP DEFAULT NOW()
-);
+SCHEMA_TABLES = [
+    "DROP TABLE IF EXISTS order_items",
+    "DROP TABLE IF EXISTS orders",
+    "DROP TABLE IF EXISTS products",
+    "DROP TABLE IF EXISTS customers",
 
-CREATE TABLE products (
-    id          SERIAL PRIMARY KEY,
-    sku         TEXT    NOT NULL UNIQUE,
-    name        TEXT    NOT NULL,
-    price       REAL    NOT NULL CHECK (price >= 0),
-    stock       INTEGER NOT NULL DEFAULT 0,
-    category    TEXT    NOT NULL DEFAULT 'general'
-);
+    """CREATE TABLE customers (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL,
+        email      TEXT    NOT NULL UNIQUE,
+        phone      TEXT,
+        joined_at  TEXT    DEFAULT (DATETIME('now'))
+    )""",
 
-CREATE TABLE orders (
-    id           SERIAL PRIMARY KEY,
-    customer_id  INTEGER NOT NULL REFERENCES customers(id),
-    status       TEXT    NOT NULL DEFAULT 'pending',
-    total        REAL    NOT NULL DEFAULT 0,
-    created_at   TIMESTAMP DEFAULT NOW()
-);
+    """CREATE TABLE products (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        sku      TEXT    NOT NULL UNIQUE,
+        name     TEXT    NOT NULL,
+        price    REAL    NOT NULL,
+        stock    INTEGER NOT NULL DEFAULT 0,
+        category TEXT    NOT NULL DEFAULT 'general'
+    )""",
 
-CREATE TABLE order_items (
-    id          SERIAL PRIMARY KEY,
-    order_id    INTEGER NOT NULL REFERENCES orders(id),
-    product_id  INTEGER NOT NULL REFERENCES products(id),
-    quantity    INTEGER NOT NULL CHECK (quantity > 0),
-    unit_price  REAL    NOT NULL
-);
-"""
+    """CREATE TABLE orders (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER NOT NULL REFERENCES customers(id),
+        status      TEXT    NOT NULL DEFAULT 'pending',
+        total       REAL    NOT NULL DEFAULT 0,
+        created_at  TEXT    DEFAULT (DATETIME('now'))
+    )""",
+
+    """CREATE TABLE order_items (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id   INTEGER NOT NULL REFERENCES orders(id),
+        product_id INTEGER NOT NULL REFERENCES products(id),
+        quantity   INTEGER NOT NULL,
+        unit_price REAL    NOT NULL
+    )""",
+]
 
 
 def setup_schema(conn):
     with conn.cursor() as cur:
-        cur.execute(CREATE_SCHEMA)
+        for stmt in SCHEMA_TABLES:
+            cur.execute(stmt)
     print("✓ Schema created (customers, products, orders, order_items)")
 
 
@@ -106,24 +116,24 @@ def seed_data(conn):
         ("SKU-002", "Mechanical Keyboard",  79.99,  80, "electronics"),
         ("SKU-003", "USB-C Hub",            49.99, 200, "electronics"),
         ("SKU-004", "Notebook A5",           8.99, 500, "stationery"),
-        ("SKU-005", "Ballpoint Pen Pack",    4.99, 1000,"stationery"),
+        ("SKU-005", "Ballpoint Pen Pack",    4.99, 1000, "stationery"),
         ("SKU-006", "Desk Lamp LED",        35.99,  60, "furniture"),
     ]
 
     with conn.cursor() as cur:
-        # Use executemany for batch inserts
         cur.executemany(
             "INSERT INTO customers (name, email, phone) VALUES (%s, %s, %s)",
             customers
         )
         cur.executemany(
-            "INSERT INTO products (sku, name, price, stock, category) VALUES (%s,%s,%s,%s,%s)",
+            "INSERT INTO products (sku, name, price, stock, category) "
+            "VALUES (%s, %s, %s, %s, %s)",
             products
         )
     print(f"✓ Seeded {len(customers)} customers, {len(products)} products")
 
 
-def place_order(conn, customer_email: str, items: list[tuple[str, int]]) -> int:
+def place_order(conn, customer_email: str, items: list) -> int:
     """
     Place an order for a customer.
     items: list of (sku, quantity) tuples.
@@ -146,7 +156,6 @@ def place_order(conn, customer_email: str, items: list[tuple[str, int]]) -> int:
 
         total = 0.0
         for sku, qty in items:
-            # Get product (lock for update to prevent race condition)
             cur.execute(
                 "SELECT id, price, stock FROM products WHERE sku = %s",
                 (sku,)
@@ -156,22 +165,22 @@ def place_order(conn, customer_email: str, items: list[tuple[str, int]]) -> int:
                 raise ValueError(f"Product not found: {sku}")
             prod_id, price, stock = prod
             if stock < qty:
-                raise ValueError(f"Insufficient stock for {sku}: need {qty}, have {stock}")
+                raise ValueError(
+                    f"Insufficient stock for {sku}: need {qty}, have {stock}"
+                )
 
-            # Insert order item
             cur.execute(
-                "INSERT INTO order_items (order_id, product_id, quantity, unit_price) "
+                "INSERT INTO order_items "
+                "(order_id, product_id, quantity, unit_price) "
                 "VALUES (%s, %s, %s, %s)",
                 (order_id, prod_id, qty, price)
             )
-            # Decrement stock
             cur.execute(
                 "UPDATE products SET stock = stock - %s WHERE id = %s",
                 (qty, prod_id)
             )
             total += price * qty
 
-        # Update order total
         cur.execute(
             "UPDATE orders SET total = %s, status = 'confirmed' WHERE id = %s",
             (round(total, 2), order_id)
@@ -191,7 +200,7 @@ def print_orders(conn):
         """)
         orders = cur.fetchall()
 
-        print(f"\n── Orders ({len(orders)}) ──────────────────────────────────")
+        print(f"\n── Orders ({len(orders)}) {'─'*40}")
         for order in orders:
             print(f"  Order #{order['id']}  customer={order['customer']!r}"
                   f"  status={order['status']}  total=${order['total']:.2f}")
@@ -215,11 +224,11 @@ def inventory_report(conn):
     with conn.cursor() as cur:
         cur.execute("""
             SELECT category,
-                   COUNT(*)       AS num_products,
-                   SUM(stock)     AS total_stock,
-                   MIN(price)     AS min_price,
-                   MAX(price)     AS max_price,
-                   AVG(price)     AS avg_price
+                   COUNT(*)    AS num_products,
+                   SUM(stock)  AS total_stock,
+                   MIN(price)  AS min_price,
+                   MAX(price)  AS max_price,
+                   AVG(price)  AS avg_price
             FROM products
             GROUP BY category
             ORDER BY category
@@ -249,7 +258,15 @@ def low_stock_alert(conn, threshold: int = 100):
         print("  All products are well-stocked.")
     else:
         for sku, name, stock in rows:
-            print(f"  ⚠ [{sku}] {name:<30}  stock={stock}")
+            print(f"  ! [{sku}] {name:<30}  stock={stock}")
+
+
+def cleanup(conn):
+    """Drop all demo tables."""
+    with conn.cursor() as cur:
+        for tbl in ["order_items", "orders", "products", "customers"]:
+            cur.execute(f"DROP TABLE IF EXISTS {tbl}")
+    print("\n✓ Cleanup — all tables dropped")
 
 
 def main():
@@ -266,7 +283,7 @@ def main():
             print(f"✓ Connected  server={version!r}\n")
     except psycopg2.OperationalError as e:
         print(f"✗ Cannot connect: {e}")
-        print("  Start the server: ./sqlite-server --no-auth -- /tmp/demo.db")
+        print("  Start the server: ./sqlite-server --no-auth -- inventory.db")
         sys.exit(1)
 
     # Setup
@@ -278,20 +295,20 @@ def main():
     with get_conn() as conn:
         try:
             oid = place_order(conn, "alice@shop.com", [
-                ("SKU-001", 2),   # 2× Wireless Mouse
-                ("SKU-003", 1),   # 1× USB-C Hub
+                ("SKU-001", 2),   # 2x Wireless Mouse
+                ("SKU-003", 1),   # 1x USB-C Hub
             ])
             print(f"✓ Order #{oid} placed for alice@shop.com")
 
             oid = place_order(conn, "bob@shop.com", [
-                ("SKU-002", 1),   # 1× Mechanical Keyboard
-                ("SKU-004", 3),   # 3× Notebook A5
-                ("SKU-005", 5),   # 5× Ballpoint Pen Pack
+                ("SKU-002", 1),   # 1x Mechanical Keyboard
+                ("SKU-004", 3),   # 3x Notebook A5
+                ("SKU-005", 5),   # 5x Ballpoint Pen Pack
             ])
             print(f"✓ Order #{oid} placed for bob@shop.com")
 
             oid = place_order(conn, "carol@shop.com", [
-                ("SKU-006", 2),   # 2× Desk Lamp LED
+                ("SKU-006", 2),   # 2x Desk Lamp LED
             ])
             print(f"✓ Order #{oid} placed for carol@shop.com")
 
@@ -299,11 +316,23 @@ def main():
             print(f"✗ Order failed: {e}")
             raise
 
+    # Test insufficient stock
+    print("\n── Test: insufficient stock ─────────────────────")
+    with get_conn() as conn:
+        try:
+            place_order(conn, "dave@shop.com", [("SKU-006", 9999)])
+        except ValueError as e:
+            print(f"  Correctly rejected: {e}")
+
     # Reports
     with get_conn() as conn:
         print_orders(conn)
         inventory_report(conn)
         low_stock_alert(conn, threshold=100)
+
+    # Cleanup
+    with get_conn() as conn:
+        cleanup(conn)
 
     print("\n✓ All done!")
 

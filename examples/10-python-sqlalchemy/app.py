@@ -33,10 +33,7 @@ from datetime import date, datetime
 from typing import List, Optional
 
 from sqlalchemy import (
-    Boolean,
     Column,
-    Date,
-    DateTime,
     Float,
     ForeignKey,
     Integer,
@@ -78,7 +75,7 @@ enrollment = Table(
     Base.metadata,
     Column("student_id", Integer, ForeignKey("students.id"), primary_key=True),
     Column("course_id",  Integer, ForeignKey("courses.id"),  primary_key=True),
-    Column("enrolled_at", Date, default=date.today),
+    Column("enrolled_at", String(10), default=None),
     Column("grade", Float, nullable=True),   # final grade 0-100
 )
 
@@ -115,7 +112,7 @@ class Teacher(Base):
     title:         Mapped[str]           = mapped_column(String(50), default="Lecturer")
     hire_date:     Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     salary:        Mapped[float]         = mapped_column(Float, default=0.0)
-    is_active:     Mapped[bool]          = mapped_column(Boolean, default=True)
+    is_active:     Mapped[int]          = mapped_column(Integer, default=1)
 
     # Relationships
     department: Mapped["Department"]    = relationship("Department", back_populates="teachers", foreign_keys=[department_id])
@@ -140,7 +137,7 @@ class Student(Base):
     date_of_birth: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     enrollment_year: Mapped[int]         = mapped_column(Integer, default=datetime.now().year)
     gpa:           Mapped[float]         = mapped_column(Float, default=0.0)
-    is_active:     Mapped[bool]          = mapped_column(Boolean, default=True)
+    is_active:     Mapped[int]          = mapped_column(Integer, default=1)
 
     # Many-to-many
     courses: Mapped[List["Course"]] = relationship(
@@ -168,7 +165,7 @@ class Course(Base):
     credits:      Mapped[int]           = mapped_column(Integer, default=3)
     max_students: Mapped[int]           = mapped_column(Integer, default=30)
     semester:     Mapped[str]           = mapped_column(String(20), default="Spring 2025")
-    is_active:    Mapped[bool]          = mapped_column(Boolean, default=True)
+    is_active:    Mapped[int]          = mapped_column(Integer, default=1)
 
     # Relationships
     department: Mapped["Department"]     = relationship("Department", back_populates="courses")
@@ -189,7 +186,7 @@ class Attendance(Base):
     student_id: Mapped[int]  = mapped_column(Integer, ForeignKey("students.id"), nullable=False)
     course_id:  Mapped[int]  = mapped_column(Integer, ForeignKey("courses.id"), nullable=False)
     date:       Mapped[str]  = mapped_column(String(10), nullable=False)
-    present:    Mapped[bool] = mapped_column(Boolean, default=True)
+    present:    Mapped[int] = mapped_column(Integer, default=1)
     notes:      Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
@@ -197,7 +194,7 @@ class Attendance(Base):
     course:  Mapped["Course"]  = relationship("Course", back_populates="attendance")
 
     def __repr__(self) -> str:
-        status = "Present" if self.present else "Absent"
+        status = "Present" if self.present == 1 else "Absent"
         return f"<Attendance {self.date} s={self.student_id} c={self.course_id} {status}>"
 
 
@@ -406,15 +403,15 @@ def main() -> None:
         print_header("7. Record Attendance")
 
         attendance_records = [
-            Attendance(student_id=students[0].id, course_id=courses[0].id, date="2025-03-10", present=True),
-            Attendance(student_id=students[0].id, course_id=courses[0].id, date="2025-03-12", present=True),
-            Attendance(student_id=students[1].id, course_id=courses[0].id, date="2025-03-10", present=False, notes="Sick"),
-            Attendance(student_id=students[1].id, course_id=courses[0].id, date="2025-03-12", present=True),
-            Attendance(student_id=students[3].id, course_id=courses[0].id, date="2025-03-10", present=True),
-            Attendance(student_id=students[3].id, course_id=courses[0].id, date="2025-03-12", present=False, notes="No reason"),
-            Attendance(student_id=students[5].id, course_id=courses[0].id, date="2025-03-10", present=True),
-            Attendance(student_id=students[7].id, course_id=courses[0].id, date="2025-03-10", present=True),
-            Attendance(student_id=students[7].id, course_id=courses[0].id, date="2025-03-12", present=True),
+            Attendance(student_id=students[0].id, course_id=courses[0].id, date="2025-03-10", present=1),
+            Attendance(student_id=students[0].id, course_id=courses[0].id, date="2025-03-12", present=1),
+            Attendance(student_id=students[1].id, course_id=courses[0].id, date="2025-03-10", present=0, notes="Sick"),
+            Attendance(student_id=students[1].id, course_id=courses[0].id, date="2025-03-12", present=1),
+            Attendance(student_id=students[3].id, course_id=courses[0].id, date="2025-03-10", present=1),
+            Attendance(student_id=students[3].id, course_id=courses[0].id, date="2025-03-12", present=0, notes="No reason"),
+            Attendance(student_id=students[5].id, course_id=courses[0].id, date="2025-03-10", present=1),
+            Attendance(student_id=students[7].id, course_id=courses[0].id, date="2025-03-10", present=1),
+            Attendance(student_id=students[7].id, course_id=courses[0].id, date="2025-03-12", present=1),
         ]
         session.add_all(attendance_records)
         session.commit()
@@ -426,7 +423,7 @@ def main() -> None:
         stmt = (
             select(Student)
             .options(selectinload(Student.courses))
-            .where(Student.is_active.is_(True))
+            .where(Student.is_active == 1)
             .order_by(Student.last_name)
         )
         all_students = session.execute(stmt).scalars().all()
@@ -441,7 +438,7 @@ def main() -> None:
         stmt = (
             select(Teacher)
             .options(joinedload(Teacher.courses), joinedload(Teacher.department))
-            .where(Teacher.is_active.is_(True))
+            .where(Teacher.is_active == 1)
             .order_by(Teacher.last_name)
         )
         all_teachers = session.execute(stmt).unique().scalars().all()
@@ -488,8 +485,8 @@ def main() -> None:
                 func.avg(Teacher.salary).label("avg_salary"),
             )
             .select_from(Department)
-            .outerjoin(Teacher, and_(Teacher.department_id == Department.id, Teacher.is_active.is_(True)))
-            .outerjoin(Course, and_(Course.department_id == Department.id, Course.is_active.is_(True)))
+            .outerjoin(Teacher, and_(Teacher.department_id == Department.id, Teacher.is_active == 1))
+            .outerjoin(Course, and_(Course.department_id == Department.id, Course.is_active == 1))
             .group_by(Department.id, Department.name)
             .order_by(func.count(Teacher.id.distinct()).desc())
         )
